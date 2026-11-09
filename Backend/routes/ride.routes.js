@@ -4,6 +4,15 @@ const { body, query } = require('express-validator');
 const rideController = require('../controllers/ride.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 
+const rideIdInBody = body('rideId').isMongoId().withMessage('Invalid ride id');
+
+// ---------------------------------------------------------------- rider
+router.get('/get-fare',
+    authMiddleware.authUser,
+    query('pickup').isString().isLength({ min: 3 }).withMessage('Invalid pickup address'),
+    query('destination').isString().isLength({ min: 3 }).withMessage('Invalid destination address'),
+    rideController.getFare
+)
 
 router.post('/create',
     authMiddleware.authUser,
@@ -13,18 +22,21 @@ router.post('/create',
     rideController.createRide
 )
 
-router.get('/get-fare',
+router.post('/cancel', authMiddleware.authUser, rideIdInBody, rideController.cancelRide)
+
+router.post('/rate',
     authMiddleware.authUser,
-    query('pickup').isString().isLength({ min: 3 }).withMessage('Invalid pickup address'),
-    query('destination').isString().isLength({ min: 3 }).withMessage('Invalid destination address'),
-    rideController.getFare
+    rideIdInBody,
+    body('rating').isInt({ min: 1, max: 5 }).withMessage('Rating must be 1 to 5').toInt(),
+    body('feedback').optional().isString().isLength({ max: 500 }).withMessage('Feedback is too long'),
+    rideController.rateRide
 )
 
-router.post('/confirm',
-    authMiddleware.authCaptain,
-    body('rideId').isMongoId().withMessage('Invalid ride id'),
-    rideController.confirmRide
-)
+router.get('/active', authMiddleware.authUser, rideController.getUserActiveRide)
+router.get('/history', authMiddleware.authUser, rideController.getUserHistory)
+
+// ---------------------------------------------------------------- captain
+router.post('/confirm', authMiddleware.authCaptain, rideIdInBody, rideController.confirmRide)
 
 router.get('/start-ride',
     authMiddleware.authCaptain,
@@ -33,12 +45,10 @@ router.get('/start-ride',
     rideController.startRide
 )
 
-router.post('/end-ride',
-    authMiddleware.authCaptain,
-    body('rideId').isMongoId().withMessage('Invalid ride id'),
-    rideController.endRide
-)
+router.post('/end-ride', authMiddleware.authCaptain, rideIdInBody, rideController.endRide)
 
-
+router.post('/captain/cancel', authMiddleware.authCaptain, rideIdInBody, rideController.captainCancelRide)
+router.get('/captain/active', authMiddleware.authCaptain, rideController.getCaptainActiveRide)
+router.get('/captain/history', authMiddleware.authCaptain, rideController.getCaptainHistory)
 
 module.exports = router;

@@ -12,7 +12,13 @@ const LookingForDriver = (props) => {
 
             <div className='flex gap-2 justify-between flex-col items-center'>
                 <VehicleIcon type={props.vehicleType} className='h-20 w-28 text-5xl animate-pulse' />
-                <TripDetails pickup={props.pickup} destination={props.destination} fare={props.fare[ props.vehicleType ]} />
+                <TripDetails pickup={props.pickup} destination={props.destination} fare={props.fare} />
+                <button
+                    disabled={!props.canCancel}
+                    onClick={props.cancelRide}
+                    className='w-full mt-3 bg-gray-200 disabled:opacity-50 text-gray-800 font-semibold p-2 rounded-lg'>
+                    Cancel ride
+                </button>
             </div>
         </div>
     )

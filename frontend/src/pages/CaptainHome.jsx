@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import axios from 'axios'
@@ -10,9 +10,8 @@ import LiveTracking from '../components/LiveTracking'
 import Logo from '../components/Logo'
 import { SocketContext } from '../context/SocketContext'
 import { CaptainDataContext } from '../context/CapatainContext'
+import useCaptainLocation from '../hooks/useCaptainLocation'
 import { BASE_URL, authHeader, apiError } from '../utils/api'
-
-const LOCATION_INTERVAL_MS = 10000
 
 const CaptainHome = () => {
 
@@ -24,36 +23,28 @@ const CaptainHome = () => {
     const ridePopupPanelRef = useRef(null)
     const confirmRidePopupPanelRef = useRef(null)
 
+    const navigate = useNavigate()
     const { socket } = useContext(SocketContext)
     const { captain } = useContext(CaptainDataContext)
 
-    // Register this socket and keep sending the captain's location.
+    useCaptainLocation(socket, Boolean(captain?._id))
+
+    // Resume an accepted or ongoing ride (e.g. after a page refresh).
     useEffect(() => {
-        if (!captain?._id) return
+        axios.get(`${BASE_URL}/rides/captain/active`, { headers: authHeader('captain') })
+            .then(({ data: activeRide }) => {
+                if (!activeRide) return
 
-        socket.emit('join', {
-            userId: captain._id,
-            userType: 'captain'
-        })
+                if (activeRide.status === 'ongoing') {
+                    navigate('/captain-riding', { state: { ride: activeRide } })
+                    return
+                }
 
-        const updateLocation = () => {
-            if (!navigator.geolocation) return
-            navigator.geolocation.getCurrentPosition(position => {
-                socket.emit('update-location-captain', {
-                    userId: captain._id,
-                    location: {
-                        ltd: position.coords.latitude,
-                        lng: position.coords.longitude
-                    }
-                })
+                setRide(activeRide)
+                setConfirmRidePopupPanel(true)
             })
-        }
-
-        updateLocation()
-        const locationInterval = setInterval(updateLocation, LOCATION_INTERVAL_MS)
-
-        return () => clearInterval(locationInterval)
-    }, [ captain?._id, socket ])
+            .catch(() => { /* nothing to resume */ })
+    }, [ navigate ])
 
     useEffect(() => {
         const onNewRide = (data) => {
@@ -61,9 +52,20 @@ const CaptainHome = () => {
             setRide(data)
             setRidePopupPanel(true)
         }
+        const onRideCancelled = () => {
+            setRidePopupPanel(false)
+            setConfirmRidePopupPanel(false)
+            setRide(null)
+            setNotice('The rider cancelled the ride.')
+        }
 
         socket.on('new-ride', onNewRide)
-        return () => socket.off('new-ride', onNewRide)
+        socket.on('ride-cancelled', onRideCancelled)
+
+        return () => {
+            socket.off('new-ride', onNewRide)
+            socket.off('ride-cancelled', onRideCancelled)
+        }
     }, [ socket ])
 
     async function confirmRide() {
@@ -71,7 +73,7 @@ const CaptainHome = () => {
             await axios.post(`${BASE_URL}/rides/confirm`, {
                 rideId: ride._id
             }, {
-                headers: authHeader()
+                headers: authHeader('captain')
             })
 
             setRidePopupPanel(false)
@@ -99,15 +101,20 @@ const CaptainHome = () => {
         <div className='h-screen'>
             <div className='fixed p-6 top-0 flex items-center justify-between w-screen z-10'>
                 <Logo className='bg-white rounded-xl px-3 py-2' />
-                <Link to='/captain/logout' title='Log out' className=' h-10 w-10 bg-white flex items-center justify-center rounded-full'>
-                    <i className="text-lg font-medium ri-logout-box-r-line"></i>
-                </Link>
+                <div className='flex gap-2'>
+                    <Link to='/captain/history' title='Your rides' className='h-10 w-10 bg-white flex items-center justify-center rounded-full'>
+                        <i className='text-lg ri-history-line'></i>
+                    </Link>
+                    <Link to='/captain/logout' title='Log out' className=' h-10 w-10 bg-white flex items-center justify-center rounded-full'>
+                        <i className="text-lg font-medium ri-logout-box-r-line"></i>
+                    </Link>
+                </div>
             </div>
-            <div className='h-3/5'>
+            <div className='h-1/2'>
                 <LiveTracking />
             </div>
-            <div className='h-2/5 p-6'>
-                {notice && <p className='mb-3 rounded-lg bg-red-100 text-red-700 p-3 text-sm'>{notice}</p>}
+            <div className='h-1/2 p-6 overflow-y-auto'>
+                {notice && <p className='mb-3 rounded-lg bg-yellow-100 text-yellow-900 p-3 text-sm'>{notice}</p>}
                 <CaptainDetails />
             </div>
             <div ref={ridePopupPanelRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-10 pt-12'>
@@ -120,6 +127,10 @@ const CaptainHome = () => {
             <div ref={confirmRidePopupPanelRef} className='fixed w-full h-screen z-10 bottom-0 translate-y-full bg-white px-3 py-10 pt-12'>
                 <ConfirmRidePopUp
                     ride={ride}
+                    onCancelled={() => {
+                        setRide(null)
+                        setNotice('Ride cancelled.')
+                    }}
                     setConfirmRidePopupPanel={setConfirmRidePopupPanel} setRidePopupPanel={setRidePopupPanel} />
             </div>
         </div>

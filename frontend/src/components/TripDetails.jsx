@@ -12,12 +12,12 @@ const Row = ({ icon, title, subtitle, border = true }) => (
 )
 
 // Pickup / destination / fare rows shared by the ride panels.
-const TripDetails = ({ pickup, destination, fare }) => {
+const TripDetails = ({ pickup, destination, fare, paymentLabel = 'Cash' }) => {
     return (
         <div className='w-full mt-5'>
             {pickup && <Row icon='ri-map-pin-user-fill' title={placeTitle(pickup)} subtitle={placeSubtitle(pickup)} />}
             {destination && <Row icon='ri-map-pin-2-fill' title={placeTitle(destination)} subtitle={placeSubtitle(destination)} />}
-            <Row icon='ri-currency-line' title={`₹${fare ?? '--'}`} subtitle='Cash' border={false} />
+            <Row icon='ri-currency-line' title={`₹${fare ?? '--'}`} subtitle={paymentLabel} border={false} />
         </div>
     )
 }

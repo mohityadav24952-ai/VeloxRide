@@ -25,7 +25,7 @@ const ConfirmRidePopUp = (props) => {
                     rideId: props.ride._id,
                     otp: otp
                 },
-                headers: authHeader()
+                headers: authHeader('captain')
             })
 
             closePanels()
@@ -33,6 +33,24 @@ const ConfirmRidePopUp = (props) => {
             navigate('/captain-riding', { state: { ride: response.data } })
         } catch (err) {
             setError(apiError(err, 'Could not start the ride.'))
+        }
+    }
+
+    const cancelRide = async () => {
+        setError('')
+
+        try {
+            await axios.post(`${BASE_URL}/rides/captain/cancel`, {
+                rideId: props.ride._id
+            }, {
+                headers: authHeader('captain')
+            })
+
+            closePanels()
+            setOtp('')
+            props.onCancelled?.()
+        } catch (err) {
+            setError(apiError(err, 'Could not cancel the ride.'))
         }
     }
 
@@ -60,7 +78,7 @@ const ConfirmRidePopUp = (props) => {
                         {error && <p className='mt-2 text-sm text-red-600'>{error}</p>}
 
                         <button type='submit' className='w-full mt-5 text-lg flex justify-center bg-green-600 text-white font-semibold p-3 rounded-lg'>Confirm</button>
-                        <button type='button' onClick={closePanels} className='w-full mt-2 bg-red-600 text-lg text-white font-semibold p-3 rounded-lg'>Cancel</button>
+                        <button type='button' onClick={cancelRide} className='w-full mt-2 bg-red-600 text-lg text-white font-semibold p-3 rounded-lg'>Cancel ride</button>
                     </form>
                 </div>
             </div>

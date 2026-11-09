@@ -85,7 +85,8 @@ module.exports.getCaptainsInTheRadius = async (ltd, lng, radius, vehicleType) =>
                 $centerSphere: [ [ lng, ltd ], radius / EARTH_RADIUS_KM ]
             }
         },
-        socketId: { $exists: true, $ne: null }
+        socketId: { $exists: true, $ne: null },
+        status: 'active'
     };
 
     if (vehicleType) {

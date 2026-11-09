@@ -30,5 +30,13 @@ router.get('/profile', authMiddleware.authCaptain, captainController.getCaptainP
 
 router.get('/logout', authMiddleware.authCaptain, captainController.logoutCaptain)
 
+router.patch('/status',
+    authMiddleware.authCaptain,
+    body('status').isIn([ 'active', 'inactive' ]).withMessage('Status must be active or inactive'),
+    captainController.updateStatus
+)
+
+router.get('/stats', authMiddleware.authCaptain, captainController.getStats)
+
 
 module.exports = router;

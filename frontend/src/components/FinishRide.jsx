@@ -8,6 +8,7 @@ import { BASE_URL, authHeader, apiError } from '../utils/api'
 const FinishRide = (props) => {
     const navigate = useNavigate()
     const [ error, setError ] = useState('')
+    const paidOnline = props.ride?.paymentStatus === 'paid'
 
     async function endRide() {
         if (!props.ride) return
@@ -17,7 +18,7 @@ const FinishRide = (props) => {
             await axios.post(`${BASE_URL}/rides/end-ride`, {
                 rideId: props.ride._id
             }, {
-                headers: authHeader()
+                headers: authHeader('captain')
             })
             navigate('/captain-home')
         } catch (err) {
@@ -33,7 +34,11 @@ const FinishRide = (props) => {
             <h3 className='text-2xl font-semibold mb-5'>Finish this Ride</h3>
             <RiderCard ride={props.ride} />
             <div className='flex gap-2 justify-between flex-col items-center'>
-                <TripDetails pickup={props.ride?.pickup} destination={props.ride?.destination} fare={props.ride?.fare} />
+                <TripDetails
+                    pickup={props.ride?.pickup}
+                    destination={props.ride?.destination}
+                    fare={props.ride?.fare}
+                    paymentLabel={paidOnline ? 'Paid online, no cash to collect' : 'Collect in cash'} />
 
                 <div className='mt-10 w-full'>
                     {error && <p className='mb-2 text-sm text-red-600'>{error}</p>}

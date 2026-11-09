@@ -6,6 +6,7 @@ import { VEHICLES, fullName } from '../utils/format'
 const WaitingForDriver = (props) => {
   const captain = props.ride?.captain
   const vehicleType = captain?.vehicle?.vehicleType
+  const rating = captain?.rating
 
   return (
     <div>
@@ -19,6 +20,9 @@ const WaitingForDriver = (props) => {
           <h2 className='text-lg font-medium capitalize'>{fullName(captain)}</h2>
           <h4 className='text-xl font-semibold -mt-1 -mb-1 uppercase'>{captain?.vehicle?.plate}</h4>
           <p className='text-sm text-gray-600 capitalize'>{captain?.vehicle?.color} · {VEHICLES[ vehicleType ]?.label}</p>
+          <p className='text-sm text-gray-600'>
+            <i className='ri-star-fill text-yellow-500'></i> {rating?.count ? rating.average.toFixed(1) : 'New'}
+          </p>
         </div>
       </div>
 
@@ -28,6 +32,10 @@ const WaitingForDriver = (props) => {
       </div>
 
       <TripDetails pickup={props.ride?.pickup} destination={props.ride?.destination} fare={props.ride?.fare} />
+
+      <button onClick={props.cancelRide} className='w-full mt-3 bg-gray-200 text-gray-800 font-semibold p-2 rounded-lg'>
+        Cancel ride
+      </button>
     </div>
   )
 }

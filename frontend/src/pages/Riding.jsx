@@ -1,26 +1,83 @@
-import React, { useContext, useEffect } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { SocketContext } from '../context/SocketContext'
+import { UserDataContext } from '../context/UserContext'
 import LiveTracking from '../components/LiveTracking'
 import VehicleIcon from '../components/VehicleIcon'
 import TripDetails from '../components/TripDetails'
+import RateRide from '../components/RateRide'
 import { VEHICLES, fullName } from '../utils/format'
+import { BASE_URL, authHeader, apiError } from '../utils/api'
+import { getPaymentConfig, payOnline } from '../utils/payment'
 
 const Riding = () => {
     const location = useLocation()
-    const { ride } = location.state || {}
-    const { socket } = useContext(SocketContext)
     const navigate = useNavigate()
+    const { socket } = useContext(SocketContext)
+    const { user } = useContext(UserDataContext)
+
+    const [ ride, setRide ] = useState(location.state?.ride || null)
+    const [ captainPosition, setCaptainPosition ] = useState(null)
+    const [ rideEnded, setRideEnded ] = useState(false)
+    const [ paymentsEnabled, setPaymentsEnabled ] = useState(false)
+    const [ paying, setPaying ] = useState(false)
+    const [ paymentError, setPaymentError ] = useState('')
+
+    // After a page refresh the router state is gone, so ask the server.
+    useEffect(() => {
+        if (ride) return
+
+        axios.get(`${BASE_URL}/rides/active`, { headers: authHeader('user') })
+            .then(({ data }) => {
+                if (data?.status === 'ongoing') {
+                    setRide(data)
+                } else {
+                    navigate('/home')
+                }
+            })
+            .catch(() => navigate('/home'))
+    }, [ ride, navigate ])
 
     useEffect(() => {
-        const onRideEnded = () => navigate('/home')
+        getPaymentConfig()
+            .then(config => setPaymentsEnabled(config.enabled))
+            .catch(() => setPaymentsEnabled(false))
+    }, [])
+
+    useEffect(() => {
+        const onRideEnded = (endedRide) => {
+            setRide(current => ({ ...current, ...endedRide }))
+            setRideEnded(true)
+        }
+        const onCaptainLocation = ({ location: position }) => setCaptainPosition(position)
 
         socket.on('ride-ended', onRideEnded)
-        return () => socket.off('ride-ended', onRideEnded)
-    }, [ socket, navigate ])
+        socket.on('captain-location', onCaptainLocation)
+
+        return () => {
+            socket.off('ride-ended', onRideEnded)
+            socket.off('captain-location', onCaptainLocation)
+        }
+    }, [ socket ])
+
+    async function handlePayOnline() {
+        setPaying(true)
+        setPaymentError('')
+        try {
+            await payOnline(ride, user)
+            setRide(current => ({ ...current, paymentStatus: 'paid', paymentMethod: 'online' }))
+        } catch (err) {
+            setPaymentError(apiError(err, err.message))
+        } finally {
+            setPaying(false)
+        }
+    }
 
     const captain = ride?.captain
     const vehicleType = captain?.vehicle?.vehicleType
+    const isPaid = ride?.paymentStatus === 'paid'
+    const markers = captainPosition ? [ { position: captainPosition, label: 'C', title: 'Your captain' } ] : []
 
     return (
         <div className='h-screen'>
@@ -28,10 +85,16 @@ const Riding = () => {
                 <i className="text-lg font-medium ri-home-5-line"></i>
             </Link>
             <div className='h-1/2'>
-                <LiveTracking />
+                <LiveTracking markers={markers} />
             </div>
-            <div className='h-1/2 p-4'>
-                {ride ? (
+            <div className='h-1/2 p-4 overflow-y-auto'>
+                {!ride && <p className='text-gray-600'>Loading your ride...</p>}
+
+                {ride && rideEnded && (
+                    <RateRide ride={ride} onDone={() => navigate('/home')} />
+                )}
+
+                {ride && !rideEnded && (
                     <>
                         <div className='flex items-center justify-between'>
                             <VehicleIcon type={vehicleType} />
@@ -42,14 +105,34 @@ const Riding = () => {
                             </div>
                         </div>
 
-                        <TripDetails destination={ride.destination} fare={ride.fare} />
+                        <TripDetails
+                            destination={ride.destination}
+                            fare={ride.fare}
+                            paymentLabel={isPaid ? 'Paid online' : 'Cash or online'} />
 
-                        <p className='w-full mt-5 bg-green-600 text-white text-center font-semibold p-2 rounded-lg'>
-                            Pay ₹{ride.fare} in cash at drop-off
-                        </p>
+                        {isPaid && (
+                            <p className='w-full mt-5 bg-green-100 text-green-800 text-center font-semibold p-2 rounded-lg'>
+                                <i className='ri-checkbox-circle-fill'></i> Paid online
+                            </p>
+                        )}
+
+                        {!isPaid && paymentsEnabled && (
+                            <button
+                                onClick={handlePayOnline}
+                                disabled={paying}
+                                className='w-full mt-5 bg-green-600 disabled:opacity-60 text-white font-semibold p-2 rounded-lg'>
+                                {paying ? 'Opening payment...' : `Pay ₹${ride.fare} online`}
+                            </button>
+                        )}
+
+                        {!isPaid && (
+                            <p className='mt-2 text-center text-sm text-gray-600'>
+                                {paymentsEnabled ? 'or pay in cash at drop-off' : `Pay ₹${ride.fare} in cash at drop-off`}
+                            </p>
+                        )}
+
+                        {paymentError && <p className='mt-2 text-center text-sm text-red-600'>{paymentError}</p>}
                     </>
-                ) : (
-                    <p className='text-gray-600'>No active ride. <Link to='/home' className='text-blue-600'>Go home</Link></p>
                 )}
             </div>
         </div>

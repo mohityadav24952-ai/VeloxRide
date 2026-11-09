@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Logo from '../components/Logo'
-import { BASE_URL, apiError } from '../utils/api'
+import { BASE_URL, apiError, setToken } from '../utils/api'
 import { CaptainDataContext } from '../context/CapatainContext'
 
 const Captainlogin = () => {
@@ -28,7 +28,7 @@ const Captainlogin = () => {
     try {
       const response = await axios.post(`${BASE_URL}/captains/login`, captain)
       setCaptain(response.data.captain)
-      localStorage.setItem('token', response.data.token)
+      setToken('captain', response.data.token)
       navigate('/captain-home')
     } catch (err) {
       setError(apiError(err, 'Login failed. Please try again.'))

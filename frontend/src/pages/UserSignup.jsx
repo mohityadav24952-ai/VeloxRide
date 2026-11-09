@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Logo from '../components/Logo'
-import { BASE_URL, apiError } from '../utils/api'
+import { BASE_URL, apiError, setToken } from '../utils/api'
 import { UserDataContext } from '../context/UserContext'
 
 
@@ -38,7 +38,7 @@ const UserSignup = () => {
     try {
       const response = await axios.post(`${BASE_URL}/users/register`, newUser)
       setUser(response.data.user)
-      localStorage.setItem('token', response.data.token)
+      setToken('user', response.data.token)
       navigate('/home')
     } catch (err) {
       setError(apiError(err, 'Sign up failed. Please try again.'))

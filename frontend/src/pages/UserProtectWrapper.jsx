@@ -1,42 +1,39 @@
 import React, { useContext, useEffect, useState } from 'react'
-import { UserDataContext } from '../context/UserContext'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { UserDataContext } from '../context/UserContext'
+import { SocketContext } from '../context/SocketContext'
+import { BASE_URL, authHeader, getToken, clearToken } from '../utils/api'
 
 const UserProtectWrapper = ({
     children
 }) => {
-    const token = localStorage.getItem('token')
     const navigate = useNavigate()
-    const { user, setUser } = useContext(UserDataContext)
+    const { setUser } = useContext(UserDataContext)
+    const { connectAs } = useContext(SocketContext)
     const [ isLoading, setIsLoading ] = useState(true)
 
     useEffect(() => {
-        if (!token) {
+        if (!getToken('user')) {
             navigate('/login')
             return
         }
 
-        axios.get(`${import.meta.env.VITE_BASE_URL}/users/profile`, {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
+        axios.get(`${BASE_URL}/users/profile`, {
+            headers: authHeader('user')
         }).then(response => {
-            if (response.status === 200) {
-                setUser(response.data)
-                setIsLoading(false)
-            }
+            setUser(response.data)
+            connectAs('user')
+            setIsLoading(false)
+        }).catch(() => {
+            clearToken('user')
+            navigate('/login')
         })
-            .catch(err => {
-                console.log(err)
-                localStorage.removeItem('token')
-                navigate('/login')
-            })
-    }, [ token ])
+    }, [ navigate, setUser, connectAs ])
 
     if (isLoading) {
         return (
-            <div>Loading...</div>
+            <div className='p-7'>Loading...</div>
         )
     }
 

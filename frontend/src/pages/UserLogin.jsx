@@ -4,7 +4,7 @@ import { UserDataContext } from '../context/UserContext'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Logo from '../components/Logo'
-import { BASE_URL, apiError } from '../utils/api'
+import { BASE_URL, apiError, setToken } from '../utils/api'
 
 const UserLogin = () => {
   const [ email, setEmail ] = useState('')
@@ -28,7 +28,7 @@ const UserLogin = () => {
     try {
       const response = await axios.post(`${BASE_URL}/users/login`, userData)
       setUser(response.data.user)
-      localStorage.setItem('token', response.data.token)
+      setToken('user', response.data.token)
       navigate('/home')
     } catch (err) {
       setError(apiError(err, 'Login failed. Please try again.'))

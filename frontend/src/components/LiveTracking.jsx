@@ -12,7 +12,9 @@ const DEFAULT_CENTER = {
     lng: 78.0322
 };
 
-const LiveTracking = () => {
+// Map centred on the viewer's own position.
+// `markers` adds extra pins, e.g. [{ position: { lat, lng }, label: 'C', title: 'Your captain' }]
+const LiveTracking = ({ markers = [] }) => {
     const [ currentPosition, setCurrentPosition ] = useState(DEFAULT_CENTER);
 
     useEffect(() => {
@@ -42,7 +44,10 @@ const LiveTracking = () => {
                 center={currentPosition}
                 zoom={15}
             >
-                <Marker position={currentPosition} />
+                <Marker position={currentPosition} title='You' />
+                {markers.map((marker, index) => (
+                    <Marker key={index} position={marker.position} label={marker.label} title={marker.title} />
+                ))}
             </GoogleMap>
         </LoadScript>
     )

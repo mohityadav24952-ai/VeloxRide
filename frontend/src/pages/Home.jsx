@@ -1,8 +1,8 @@
-import React, { useContext, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import axios from 'axios'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import LocationSearchPanel from '../components/LocationSearchPanel'
 import VehiclePanel from '../components/VehiclePanel'
 import ConfirmRide from '../components/ConfirmRide'
@@ -11,7 +11,6 @@ import WaitingForDriver from '../components/WaitingForDriver'
 import LiveTracking from '../components/LiveTracking'
 import Logo from '../components/Logo'
 import { SocketContext } from '../context/SocketContext'
-import { UserDataContext } from '../context/UserContext'
 import { BASE_URL, authHeader, apiError } from '../utils/api'
 
 // Slide a bottom panel in or out whenever `open` changes.
@@ -43,18 +42,46 @@ const Home = () => {
     const [ fare, setFare ] = useState({})
     const [ vehicleType, setVehicleType ] = useState(null)
     const [ ride, setRide ] = useState(null)
-    const [ tripError, setTripError ] = useState('')
+    const [ message, setMessage ] = useState(null) // { text, isError }
 
     const navigate = useNavigate()
-
     const { socket } = useContext(SocketContext)
-    const { user } = useContext(UserDataContext)
 
+    const showError = (text) => setMessage({ text, isError: true })
+
+    // Close every ride panel and forget the current ride.
+    const resetTrip = useCallback((text = '') => {
+        setVehiclePanel(false)
+        setConfirmRidePanel(false)
+        setVehicleFound(false)
+        setWaitingForDriver(false)
+        setRide(null)
+        setMessage(text ? { text, isError: false } : null)
+    }, [])
+
+    // Resume a ride that is still in progress (e.g. after a page refresh).
     useEffect(() => {
-        if (user?._id) {
-            socket.emit('join', { userType: 'user', userId: user._id })
-        }
-    }, [ user, socket ])
+        axios.get(`${BASE_URL}/rides/active`, { headers: authHeader('user') })
+            .then(({ data: activeRide }) => {
+                if (!activeRide) return
+
+                if (activeRide.status === 'ongoing') {
+                    navigate('/riding', { state: { ride: activeRide } })
+                    return
+                }
+
+                setRide(activeRide)
+                setPickup(activeRide.pickup)
+                setDestination(activeRide.destination)
+                setVehicleType(activeRide.vehicleType)
+                if (activeRide.status === 'accepted') {
+                    setWaitingForDriver(true)
+                } else {
+                    setVehicleFound(true)
+                }
+            })
+            .catch(() => { /* nothing to resume */ })
+    }, [ navigate ])
 
     useEffect(() => {
         const onRideConfirmed = (confirmedRide) => {
@@ -66,15 +93,27 @@ const Home = () => {
             setWaitingForDriver(false)
             navigate('/riding', { state: { ride: startedRide } })
         }
+        const onRideCancelled = ({ cancelledBy }) => {
+            if (cancelledBy === 'captain') {
+                resetTrip('Your captain cancelled the ride. Please book again.')
+            }
+        }
+        const onNoCaptains = () => {
+            resetTrip('No captains are available nearby right now. Please try again in a few minutes.')
+        }
 
         socket.on('ride-confirmed', onRideConfirmed)
         socket.on('ride-started', onRideStarted)
+        socket.on('ride-cancelled', onRideCancelled)
+        socket.on('no-captains', onNoCaptains)
 
         return () => {
             socket.off('ride-confirmed', onRideConfirmed)
             socket.off('ride-started', onRideStarted)
+            socket.off('ride-cancelled', onRideCancelled)
+            socket.off('no-captains', onNoCaptains)
         }
-    }, [ socket, navigate ])
+    }, [ socket, navigate, resetTrip ])
 
     const fetchSuggestions = async (input, setSuggestions) => {
         if (input.trim().length < MIN_QUERY_LENGTH) {
@@ -84,7 +123,7 @@ const Home = () => {
         try {
             const response = await axios.get(`${BASE_URL}/maps/get-suggestions`, {
                 params: { input },
-                headers: authHeader()
+                headers: authHeader('user')
             })
             setSuggestions(response.data)
         } catch {
@@ -132,49 +171,72 @@ const Home = () => {
     useSlidePanel(waitingForDriverRef, waitingForDriver)
 
     async function findTrip() {
-        setTripError('')
+        setMessage(null)
 
         if (pickup.trim().length < MIN_QUERY_LENGTH || destination.trim().length < MIN_QUERY_LENGTH) {
-            setTripError('Enter both a pickup and a destination.')
+            showError('Enter both a pickup and a destination.')
             return
         }
 
         try {
             const response = await axios.get(`${BASE_URL}/rides/get-fare`, {
                 params: { pickup, destination },
-                headers: authHeader()
+                headers: authHeader('user')
             })
             setFare(response.data)
             setPanelOpen(false)
             setVehiclePanel(true)
         } catch (err) {
-            setTripError(apiError(err, 'Could not get a fare for this trip. Try another address.'))
+            showError(apiError(err, 'Could not get a fare for this trip. Try another address.'))
         }
     }
 
     async function createRide() {
+        setMessage(null)
         try {
-            await axios.post(`${BASE_URL}/rides/create`, {
+            const { data } = await axios.post(`${BASE_URL}/rides/create`, {
                 pickup,
                 destination,
                 vehicleType
             }, {
-                headers: authHeader()
+                headers: authHeader('user')
             })
+            setRide(data)
         } catch (err) {
             setVehicleFound(false)
-            setTripError(apiError(err, 'Could not book the ride. Please try again.'))
+            showError(apiError(err, 'Could not book the ride. Please try again.'))
+        }
+    }
+
+    async function cancelRide() {
+        if (!ride?._id) return
+
+        try {
+            await axios.post(`${BASE_URL}/rides/cancel`, { rideId: ride._id }, { headers: authHeader('user') })
+            resetTrip('Ride cancelled.')
+        } catch (err) {
+            showError(apiError(err, 'Could not cancel the ride.'))
         }
     }
 
     return (
         <div className='h-screen relative overflow-hidden'>
-            <Logo className='absolute left-5 top-5 z-10 bg-white rounded-xl px-3 py-2' />
+            <div className='absolute left-5 right-5 top-5 z-10 flex items-center justify-between'>
+                <Logo className='bg-white rounded-xl px-3 py-2' />
+                <div className='flex gap-2'>
+                    <Link to='/history' title='Your rides' className='h-10 w-10 bg-white flex items-center justify-center rounded-full'>
+                        <i className='text-lg ri-history-line'></i>
+                    </Link>
+                    <Link to='/user/logout' title='Log out' className='h-10 w-10 bg-white flex items-center justify-center rounded-full'>
+                        <i className='text-lg ri-logout-box-r-line'></i>
+                    </Link>
+                </div>
+            </div>
             <div className='h-screen w-screen'>
                 <LiveTracking />
             </div>
             <div className=' flex flex-col justify-end h-screen absolute top-0 w-full'>
-                <div className='h-[30%] p-6 bg-white relative'>
+                <div className='min-h-[30%] p-6 bg-white relative'>
                     <h5 ref={panelCloseRef} onClick={() => {
                         setPanelOpen(false)
                     }} className='absolute opacity-0 right-6 top-6 text-2xl'>
@@ -210,7 +272,9 @@ const Home = () => {
                         className='bg-black text-white px-4 py-2 rounded-lg mt-3 w-full'>
                         Find Trip
                     </button>
-                    {tripError && <p className='mt-2 text-sm text-red-600'>{tripError}</p>}
+                    {message && (
+                        <p className={`mt-2 text-sm ${message.isError ? 'text-red-600' : 'text-gray-700'}`}>{message.text}</p>
+                    )}
                 </div>
                 <div ref={panelRef} className='bg-white h-0'>
                     <LocationSearchPanel
@@ -241,13 +305,16 @@ const Home = () => {
                 <LookingForDriver
                     pickup={pickup}
                     destination={destination}
-                    fare={fare}
+                    fare={ride?.fare ?? fare[ vehicleType ]}
                     vehicleType={vehicleType}
+                    canCancel={Boolean(ride?._id)}
+                    cancelRide={cancelRide}
                     setVehicleFound={setVehicleFound} />
             </div>
             <div ref={waitingForDriverRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-6 pt-12'>
                 <WaitingForDriver
                     ride={ride}
+                    cancelRide={cancelRide}
                     setWaitingForDriver={setWaitingForDriver} />
             </div>
         </div>

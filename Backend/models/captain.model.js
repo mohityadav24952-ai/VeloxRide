@@ -59,6 +59,18 @@ const captainSchema = new mongoose.Schema({
         }
     },
 
+    // Average of the ratings riders gave after completed rides
+    rating: {
+        average: {
+            type: Number,
+            default: 0,
+        },
+        count: {
+            type: Number,
+            default: 0,
+        }
+    },
+
     // GeoJSON point: coordinates are [ longitude, latitude ]
     location: {
         type: {

@@ -31,8 +31,18 @@ const rideSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: [ 'pending', 'accepted', "ongoing", 'completed', 'cancelled' ],
+        enum: [ 'pending', 'accepted', 'ongoing', 'completed', 'cancelled' ],
         default: 'pending',
+    },
+
+    // Who cancelled: the rider, the captain, or the system (no captain found)
+    cancelledBy: {
+        type: String,
+        enum: [ 'user', 'captain', 'system' ],
+    },
+
+    completedAt: {
+        type: Date,
     },
 
     duration: {
@@ -43,6 +53,16 @@ const rideSchema = new mongoose.Schema({
         type: Number,
     }, // in meters
 
+    paymentStatus: {
+        type: String,
+        enum: [ 'unpaid', 'paid' ],
+        default: 'unpaid',
+    },
+    paymentMethod: {
+        type: String,
+        enum: [ 'cash', 'online' ],
+        default: 'cash',
+    },
     paymentID: {
         type: String,
     },
@@ -53,11 +73,22 @@ const rideSchema = new mongoose.Schema({
         type: String,
     },
 
+    // Rider's rating of the captain, given after the ride
+    rating: {
+        type: Number,
+        min: 1,
+        max: 5,
+    },
+    feedback: {
+        type: String,
+        maxlength: 500,
+    },
+
     otp: {
         type: String,
         select: false,
         required: true,
     },
-})
+}, { timestamps: true })
 
 module.exports = mongoose.model('ride', rideSchema);

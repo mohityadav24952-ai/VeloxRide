@@ -1,52 +1,41 @@
 import React, { useContext, useEffect, useState } from 'react'
-import { CaptainDataContext } from '../context/CapatainContext'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { CaptainDataContext } from '../context/CapatainContext'
+import { SocketContext } from '../context/SocketContext'
+import { BASE_URL, authHeader, getToken, clearToken } from '../utils/api'
 
 const CaptainProtectWrapper = ({
     children
 }) => {
-
-    const token = localStorage.getItem('token')
     const navigate = useNavigate()
-    const { captain, setCaptain } = useContext(CaptainDataContext)
+    const { setCaptain } = useContext(CaptainDataContext)
+    const { connectAs } = useContext(SocketContext)
     const [ isLoading, setIsLoading ] = useState(true)
 
-
-
-
     useEffect(() => {
-        if (!token) {
+        if (!getToken('captain')) {
             navigate('/captain-login')
             return
         }
 
-        axios.get(`${import.meta.env.VITE_BASE_URL}/captains/profile`, {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
+        axios.get(`${BASE_URL}/captains/profile`, {
+            headers: authHeader('captain')
         }).then(response => {
-            if (response.status === 200) {
-                setCaptain(response.data.captain)
-                setIsLoading(false)
-            }
+            setCaptain(response.data.captain)
+            connectAs('captain')
+            setIsLoading(false)
+        }).catch(() => {
+            clearToken('captain')
+            navigate('/captain-login')
         })
-            .catch(err => {
-
-                localStorage.removeItem('token')
-                navigate('/captain-login')
-            })
-    }, [ token ])
-
-    
+    }, [ navigate, setCaptain, connectAs ])
 
     if (isLoading) {
         return (
-            <div>Loading...</div>
+            <div className='p-7'>Loading...</div>
         )
     }
-
-
 
     return (
         <>
