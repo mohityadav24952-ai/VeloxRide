@@ -28,6 +28,7 @@
 **[🛠️ Tech Stack](#️-tech-stack)** •
 **[🔄 How it works](#-how-a-ride-works)** •
 **[🚀 Quick Start](#-quick-start)** •
+**[☁️ Deploy](#️-deployment)** •
 **[📡 API](#-api-reference)** •
 **[🗺️ Roadmap](#️-roadmap)**
 
@@ -139,7 +140,7 @@
 | ⚙️ **Backend** | Node.js · Express 4 · express-validator · express-rate-limit · cookie-parser · CORS |
 | 🗄️ **Database** | MongoDB · Mongoose 8 (GeoJSON + `2dsphere` index) |
 | ⚡ **Realtime** | Socket.IO 4 with JWT handshake auth |
-| 🗺️ **Maps** | Google Maps JavaScript API · Geocoding · Distance Matrix · Places Autocomplete |
+| 🗺️ **Maps** | Google Maps JavaScript API · Geocoding API · Routes API (route matrix) · Places API (New) autocomplete |
 | 💳 **Payments** | Razorpay Orders API + Checkout.js *(optional)* |
 | 🔐 **Auth** | JWT · bcrypt · token blacklist with TTL |
 | 🧪 **Testing** | Node's built-in test runner (`node --test`) |
@@ -161,7 +162,7 @@ sequenceDiagram
         C->>S: 📍 update-location-captain
     end
     R->>S: GET /rides/get-fare
-    S->>G: Distance Matrix
+    S->>G: Routes API (distance + time)
     S-->>R: { auto, car, moto }
     R->>S: POST /rides/create
     alt captains nearby
@@ -192,7 +193,7 @@ sequenceDiagram
 
 - 🟩 **Node.js 18+** and npm
 - 🍃 **MongoDB** (local or a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster)
-- 🗺️ **Google Cloud API key** with *Maps JavaScript*, *Geocoding*, *Distance Matrix* and *Places* APIs turned on
+- 🗺️ **Google Cloud API key** with *Maps JavaScript API*, *Geocoding API*, *Routes API* and *Places API (New)* turned on
 - 💳 *(Optional)* **Razorpay test keys** for online payments
 
 ### ⚙️ Setup
@@ -229,7 +230,8 @@ npm run dev
 | `DB_CONNECT` | ✅ | MongoDB connection string |
 | `JWT_SECRET` | ✅ | Long random string for signing JWTs |
 | `GOOGLE_MAPS_API` | ✅ | Google Maps server key |
-| `CLIENT_URL` | ➖ | Frontend origin for CORS/Socket.IO, e.g. `http://localhost:5173` |
+| `CLIENT_URL` | ➖ | Frontend origin(s) for CORS/Socket.IO, comma-separated, e.g. `http://localhost:5173,https://veloxride.vercel.app` |
+| `TRUST_PROXY` | ➖ | Set to `1` when hosted behind a proxy (Render) so rate limiting sees real visitor IPs |
 | `RAZORPAY_KEY_ID` | ➖ | Razorpay key id. Leave empty for cash only |
 | `RAZORPAY_KEY_SECRET` | ➖ | Razorpay key secret |
 
@@ -261,6 +263,34 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```bash
 cd Backend && npm test
 ```
+
+---
+
+## ☁️ Deployment
+
+VeloxRide deploys as two services. Both redeploy automatically on every `git push`.
+
+| Part | Host | Root directory | Build command | Start command |
+|------|------|----------------|---------------|---------------|
+| ⚙️ Backend | [Render](https://render.com) Web Service | `Backend` | `npm install` | `npm start` |
+| 🎨 Frontend | [Vercel](https://vercel.com) (Vite preset) | `frontend` | `npm run build` | – (static, output `dist`) |
+
+<details>
+<summary><b>📋 Deployment checklist</b></summary>
+<br/>
+
+1. 🍃 MongoDB Atlas → Network Access → allow `0.0.0.0/0` (Render IPs change)
+2. ⚙️ **Render**: add `DB_CONNECT`, `JWT_SECRET`, `GOOGLE_MAPS_API`, `TRUST_PROXY=1`, `TZ=Asia/Kolkata` (+ Razorpay keys). Don't set `PORT`
+3. 🎨 **Vercel**: add `VITE_BASE_URL=https://<your-api>.onrender.com` and `VITE_GOOGLE_MAPS_API_KEY`
+4. 🔗 **Render**: set `CLIENT_URL=http://localhost:5173,https://<your-app>.vercel.app`
+5. 🗺️ **Google Cloud**: add `https://<your-app>.vercel.app/*` to the browser key's website restrictions
+6. 🔁 Changed a `VITE_` variable? **Redeploy** on Vercel, since they're baked in at build time
+
+> 💤 Render's free plan sleeps after inactivity. The first request can take about a minute, so open the API URL before a demo.
+
+`frontend/vercel.json` rewrites every path to `index.html`, so refreshing a page like `/home` works.
+
+</details>
 
 ---
 
@@ -406,7 +436,7 @@ VeloxRide/
 - [ ] 💸 Automatic refunds on cancellation
 - [ ] 👤 Profile editing
 - [ ] 🧪 Frontend tests
-- [ ] ☁️ One-click deployment guide
+- [x] ☁️ Deployment setup (Render + Vercel)
 
 ---
 

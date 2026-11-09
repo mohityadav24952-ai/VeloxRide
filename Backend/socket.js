@@ -4,6 +4,7 @@ const userModel = require('./models/user.model');
 const captainModel = require('./models/captain.model');
 const rideModel = require('./models/ride.model');
 const blacklistTokenModel = require('./models/blacklistToken.model');
+const clientOrigins = require('./utils/clientOrigins');
 
 let io;
 
@@ -40,7 +41,7 @@ async function authenticate(socket, next) {
 function initializeSocket(server) {
     io = socketIo(server, {
         cors: {
-            origin: process.env.CLIENT_URL || '*',
+            origin: clientOrigins(),
             methods: [ 'GET', 'POST' ]
         }
     });
